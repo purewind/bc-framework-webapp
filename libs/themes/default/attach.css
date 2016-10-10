@@ -41,7 +41,7 @@
 	filter: alpha(opacity =         10);
 	opacity: 0;
 	cursor: pointer;
-	-moz-margin-start: -165px; /*Firefox的input:file宽度无法控制的处理*/
+	/*-moz-margin-start: -165px; Firefox的input:file宽度无法控制的处理，从v27.0发现此问题已经解决*/
 }
 
 /** 每个附加的总容器 */
@@ -122,12 +122,20 @@ span.file-icon.docx {
 	background-position: -128px 0;
 }
 
+span.file-icon.docm {
+	background-position: -288px -32px;
+}
+
 span.file-icon.xls {
 	background-position: -160px 0;
 }
 
 span.file-icon.xlsx {
 	background-position: -192px 0;
+}
+
+span.file-icon.xlsm {
+	background-position: -288px 0;
 }
 
 span.file-icon.ppt {
@@ -161,6 +169,10 @@ span.file-icon.gz {
 
 span.file-icon.tar {
 	background-position: -160px -32px;
+}
+
+span.file-icon.html, span.file-icon.htm {
+	background-position: -192px -32px;
 }
 
 /**图片*/

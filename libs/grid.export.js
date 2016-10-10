@@ -6,8 +6,10 @@
  * @depend list.js
  */
 (function($) {
+// 最大导出条目数
+var VIEW_EXPORT_MAX_COUNT = 2500;
 
-/**
+	/**
  * 显示导出视图数据的配置界面-->用户选择-->导出excel
  * @param $grid 表格的jquery对象
  * @param el 导出按钮对应的dom元素
@@ -33,7 +35,8 @@ bc.grid.export2Excel = function($grid,el) {
 		+'<table class="headersTable" cellspacing="2" cellpadding="0"><tbody><tr>{0}</tr></tbody></table>'
 		+'<div class="buttons">'
 		+'<a id="continue" style="text-decoration:underline;cursor:pointer;">继续</a>&nbsp;&nbsp;'
-		+'<a id="cancel" style="text-decoration:underline;cursor:pointer;">取消</a></div>'
+		+'<a id="cancel" style="text-decoration:underline;cursor:pointer;">取消</a>&nbsp;&nbsp;'
+		+'<a id="reverse" style="text-decoration:underline;cursor:pointer;">反选</a></div>'
 		+'<input type="hidden" name="search">'
 		+'<input type="hidden" name="exportKeys">'
 		+'</form>');
@@ -41,7 +44,7 @@ bc.grid.export2Excel = function($grid,el) {
 	//获取列的定义信息
 	var headerIds=[],headerNames=[];
 	var fields = []
-	var columns = $grid.find("div.header>div.right>table.table td");
+	var columns = $grid.find("div.header>div.right>table.table td[data-id]");
 	var maxh = 12;											// 控制1列最多输出的条目数
 	var totalCount = columns.size();						// 总条目数
 	var splitCount,headerCount;
@@ -70,8 +73,8 @@ bc.grid.export2Excel = function($grid,el) {
 			}else{
 				$column = $(columns[index]);
 				_ul.push('<li>'
-					+'<label for="field'+i+'">'
-					+'<input type="checkbox" id="field'+i+'" name="field" value="'+$column.attr("data-id")+'" checked>'
+					+'<label>'
+					+'<input type="checkbox" name="field" value="'+$column.attr("data-id")+'" checked>'
 					+'<span>'+$column.attr("data-label")+'</span></label></li>');
 			}
 		}
@@ -107,13 +110,27 @@ bc.grid.export2Excel = function($grid,el) {
 		data.exportFormat="xls";
 		
 		//导出范围
-		data.exportScope = boxPointer.find(":radio:checked[name='exportScope']").val();
-		
+		var exportScope = boxPointer.find(":radio:checked[name='exportScope']").val();
+
 		//分页参数
 		var $pager_seek = $page.find("ul.pager>li.seek");
-		if(paging && data.exportScope != "2"){//视图为分页视图，并且用户没有选择导出范围为"全部"
+		if(paging && exportScope != "2"){//视图为分页视图，并且用户没有选择导出范围为"全部"
 			data["page.pageNo"] = $pager_seek.find("#pageNo").text();
 			data["page.pageSize"] = $pager_seek.parent().find("li.size>a.ui-state-active>span.pageSize").text();
+		}
+
+		// 对分页视图的导出全部作导出限制
+		if(paging && exportScope == "2") {
+			var totalCount = parseInt($pager_seek.find("#totalCount").text());
+			//console.log("1--" + $page.find("ul.pager>li[data-action=export]").length);
+			//console.log("2--" + $page.find("ul.pager>li[data-action=export]").attr("data-max-count"));
+			var maxCount = parseInt($page.find("ul.pager>li[data-action=export]").attr("data-max-count")) || VIEW_EXPORT_MAX_COUNT;
+			if(totalCount > maxCount){
+				//console.log("totalCount=%d", totalCount);
+				bc.msg.info("系统限制每次最多导出 " + maxCount + " 条数据，当前共有 "
+				+ totalCount + " 条数据，已超出限制，无法导出。请先通过条件搜索减少导出数据的条目数！");
+				return false;
+			}
 		}
 		
 		//附加页面的data-extras参数
@@ -129,6 +146,10 @@ bc.grid.export2Excel = function($grid,el) {
 			if(extras){
 				data = $.extend(data, extras);
 			}
+		}
+		//  如果有search参数则删除掉，避免重复
+		if (data.search) {
+			delete data.search;
 		}
 		
 		//附加排序参数
@@ -148,6 +169,10 @@ bc.grid.export2Excel = function($grid,el) {
 		
 		//附加要导出的列参数到隐藏域
 		var $fields = boxPointer.find(":checkbox:checked[name='field']");
+		if($fields.size() == 0){
+			bc.msg.slide("必须至少选择一列信息！");
+			return false;
+		}
 		if($fields.size() != columns.size()){//用户去除了部分的列没选择
 			var t="";
 			$fields.each(function(i){
@@ -172,6 +197,15 @@ bc.grid.export2Excel = function($grid,el) {
 		
 		//删除弹出的窗口
 		boxPointer.remove();
+		return false;
+	});
+	
+	//反选按钮
+	boxPointer.find("#reverse").click(function(){
+		boxPointer.find(":checkbox[name='field']").each(function(){
+			this.checked = !this.checked;
+		});
+
 		return false;
 	});
 };

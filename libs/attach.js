@@ -20,7 +20,16 @@ bc.attach={
 		var to = $(attachEl).attr("data-to");
 		if(to && to.length > 0)
 			url += "&to=" + to;
-		window.open(url, "_blank");
+		return window.open(url, "_blank");
+	},
+	/** 在线打开所有附件 */
+	inlineAll: function() {
+	    //在新窗口中打开文件
+        var url = bc.root + "/bc/attach/inline?id=";
+        var args = arguments; // 获取所有参数
+        for (var i = 0; i < args.length; i++){
+            window.open(url + args[i], "_blank");
+        }
 	},
 	/** 下载附件 */
 	download: function(attachEl,callback){
@@ -76,10 +85,14 @@ bc.attach={
 	deleteAll: function(attachsEl,callback){
 		var $attachs = $(attachsEl);
 		if($attachs.find(".attach").size()){
+			var data = {
+				ptype: $attachs.attr("data-ptype"),
+				puid: $attachs.attr("data-puid"),
+			};
 			bc.msg.confirm("确定要将全部附件删除吗？",function(){
 				bc.ajax({
-					url: bc.root + "/bc/attach/deleteAll?ptype=" + $attachs.attr("data-ptype"),
-					type: "GET",dataType:"json",
+					url: bc.root + "/bc/attach/deleteAll",
+					data: data,type: "POST",dataType:"json",
 					success: function(json){
 						//json:{success:true,msg:"..."}
 						if(typeof(json) != "object"){
@@ -144,6 +157,7 @@ bc.attach={
     operationsTpl:[
 		'<a href="#" class="operation" data-action="inline">在线查看</a>',
 		'<a href="#" class="operation" data-action="download">下载</a>',
+		'<a href="#" class="operation" data-action="print">打印</a>',
 		'<a href="#" class="operation" data-action="delete">删除</a>'
 	].join(""),
     /**判断浏览器是否可使用html5上传文件*/
@@ -179,11 +193,12 @@ if(bc.attach.isHtml5Upload()){
 
 //单个附件的操作按钮
 $(".attachs .operation").live("click",function(e){
-	$this = $(this);
+	var $this = $(this);
 	var action = $this.attr("data-action");//内定的操作
 	var callback = $this.attr("data-callback");//回调函数
 	callback = callback ? bc.getNested(callback) : undefined;//转换为函数
-	$attach = $this.parents(".attach");
+	var $attach = $this.closest(".attach");//每个附件的容器
+	if($attach.size() == 0) $attach = $this.closest(".attachs");//整个附件的容器
 	switch (action){
 	case "abort"://取消附件的上传
 		if(bc.attach.isHtml5Upload($attach[0])){
@@ -201,6 +216,15 @@ $(".attachs .operation").live("click",function(e){
 	case "download"://下载附件
 		bc.attach.download($attach[0],callback);
 		break;
+	case "print"://打印附件
+		var win = bc.attach.inline($attach[0],callback);
+		setTimeout(function(){
+			win.print();
+			setTimeout(function(){
+				win.close();
+			},100);
+		},2000);
+		break;
 	case "downloadAll"://打包下载所有附件
 		bc.attach.downloadAll($this.parents(".attachs")[0],callback);
 		break;
@@ -211,9 +235,9 @@ $(".attachs .operation").live("click",function(e){
 		var click = $this.attr("data-click");
 		if(typeof click == "string"){
 			var clickFn = bc.getNested(click);//将函数名称转换为函数
-			if(typeof clickFn == "function")
+			if(typeof clickFn == "function"){
 				clickFn.call($attach[0],callback);
-			else
+			}else
 				alert("没有定义'" + click + "'函数");
 		}else{
 			alert("没有定义的action：" + action);

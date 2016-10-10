@@ -35,24 +35,27 @@ bc.form = {
 			//只读表单的处理
 			$form.find(":input:visible:not('.custom')").each(function(){
 				logger.debug("disabled:" + this.name);
-				if(this.nodeName.toLowerCase() == "select")
+				var $in = $(this);
+				if($in.is("select,:checkbox,:radio"))
 					this.disabled=true;
 				else
 					this.readOnly=true;
 			});
-			$form.find("ul.inputIcons,span.selectButton").each(function(){
+			$form.find("ul.inputIcons:not('.ignore'),span.selectButton").each(function(){
 				$(this).hide();
 			});
 		}
 		
 		// 绑定多页签处理
 		$form.find(".formTabs").filter(":not('.custom')").each(function(){
-			$this = $(this);
-			var $tabs = $this.bctabs(bc.page.defaultBcTabsOption);
+			var $tabs = $(this).bctabs(bc.page.defaultBcTabsOption);
 			$form.bind("dialogresize", function(event, ui) {
 				bc.form.resizeFromTabs.call($tabs,$form);
 			});
 		});
+		
+		// 自动高度调整
+		$form.find(".autoHeight").keyup();
 	},
 	
 	/** 重新调整tab的尺寸
@@ -68,6 +71,7 @@ bc.form = {
 		$form.find('.bc-date[readonly!="readonly"],.bc-time[readonly!="readonly"],.bc-datetime[readonly!="readonly"]')
 		.filter(":not('.custom')")
 		.each(function bindSelectCalendar(){
+			// 获取用户配置
 			var $this = $(this);
 			var cfg = $this.attr("data-cfg");
 			if(cfg && cfg.length > 0){
@@ -75,14 +79,40 @@ bc.form = {
 			}else{
 				cfg = {};
 			}
-			if(typeof cfg.onSelect == "string"){
-				var fn = bc.getNested(cfg.onSelect);
-				if(typeof fn != "function"){
+			var $page = $this.closest(".bc-page");
+			var scope = $page.data("scope");
+
+			// 重构 onSelect 配置
+			if(typeof cfg.onSelect == "string") {
+				var fn;
+				if ($page.size() > 0 && scope) {
+					fn = scope[cfg.onSelect];
+				} else {
+					fn = bc.getNested(cfg.onSelect);
+				}
+				if (typeof fn != "function") {
 					alert('函数“' + cfg.onSelect + '”没有定义！');
 					return false;
 				}
 				cfg.onSelect = fn;
 			}
+
+			// 重构 onClose 配置
+			if(typeof cfg.onClose == "string") {
+				var fn;
+				if ($page.size() > 0 && scope) {
+					fn = scope[cfg.onClose];
+				} else {
+					fn = bc.getNested(cfg.onClose);
+				}
+				if (typeof fn != "function") {
+					alert('函数“' + cfg.onClose + '”没有定义！');
+					return false;
+				}
+				cfg.onClose = fn;
+			}
+
+			// 添加默认配置
 			cfg = jQuery.extend({
 				//showWeek: true,//显示第几周
 				//showButtonPanel: true,//显示今天按钮
@@ -91,7 +121,8 @@ bc.form = {
 				showOtherMonths: true,
 				selectOtherMonths: true,
 				firstDay: 7,
-				dateFormat:"yy-mm-dd"//yy4位年份、MM-大写的月份
+				dateFormat:"yy-mm-dd",//yy4位年份、MM-大写的月份,
+                timeFormat:"HH:mm"
 			},cfg);
 			
 			// 额外的处理
@@ -125,16 +156,22 @@ bc.form = {
 						
 						//调用原来的回调函数
 						if(typeof oldFun == "function"){
-							return oldFun.call(this,dateText,inst);
+							return oldFun.call(scope || this, dateText, inst);
 						}
 					};
 				}
 			}
 			
-			//重构回调函数，使控件重新获取焦点
+			// 重构 onClose 回调函数，使控件重新获取焦点再调用用户自定义的 onClose 函数
+			var customOnClose = cfg.onClose;
 			cfg.onClose = function(){
 				$this.focus();
-			}
+
+				// 调用用户自定义的 onClose 函数
+				if(typeof customOnClose == "function"){
+					return customOnClose.apply(scope || this, arguments);
+				}
+			};
 			
 			if($this.hasClass('bc-date'))
 				$this.datepicker(cfg);
@@ -148,47 +185,88 @@ bc.form = {
 
 var $document = $(document);
 //表单域内的选择按钮鼠标样式切换
-$(document).delegate("li.inputIcon",{
+$document.delegate(".inputIcon",{
 	mouseover: function() {
 		$(this).addClass("hover");
 	},
-	mouseout: function() {
-		$(this).removeClass("hover");
-	}
+    mouseout: function() {
+        $(this).removeClass("hover");
+    },
+    click: function() {
+        var $this = $(this);
+        // 获取回调函数
+        var fn = $this.attr("data-click");
+        if(!fn) return;
+
+	    var $page = $this.closest(".bc-page");
+	    var scope = $page.data("scope");
+	    var fn = scope ? scope[fn] : bc.getNested(fn);
+	    if(typeof fn != "function") {
+		    alert("回调函数没有定义：" + $this.attr("data-click"));
+		    return;
+	    }
+
+        // 获取函数参数，调用回调函数
+        var args = $this.attr("data-click-args");
+	    var context = scope && $page.data("scopeType") === "instance" ? scope : $page.get(0);
+	    if(args){
+	        args = eval("(" + args + ")");
+            if($.isArray(args)){
+                fn.apply(context, args);
+            }else{
+                fn.call(context, args);
+            }
+        }else{
+            fn.call(context);
+        }
+    }
 });
-//清空选择的自动处理
+/**
+ * 清空选择的自动处理
+ * 
+ * 使用方法：
+ * 在带有此样式的元素中配置data-cfg属性来控制要清空值的元素和控制回调函数，格式为：
+ * {callback:[函数全称],fields:[用逗号连接的多个控件名称的字符串]}；
+ * 不配置此属性时视为标准“ul.inputIcons”结构中“.clearSelect”元素，自动获取“ul.inputIcons”
+ * 的兄弟元素（input[type='text'],input[type='hidden']）进行内容清空
+ * 
+ */
 $document.delegate(".clearSelect",{
 	click: function() {
 		var $this = $(this);
-		var cfg = $this.data("cfg");
-		if(logger.debugEnabled)logger.debug("cfg=" + $.toJSON(cfg));
-		if(!cfg){
-			// 自动查找临近的元素
-			var $s = $this.parent("ul.inputIcons").siblings("input[type='text'],input[type='hidden']");
-			$s.val("");
-			
-			// 调用自定义的回调函数
-			$s = $s.filter("input[type='text']");//主配置元素
-			if($s.size() > 0){
-				cfg = $s.data("cfg");
-				if(cfg && (typeof cfg.callback == "string")){
-					var callback = bc.getNested(cfg.callback);
-					if(typeof callback != "function"){
-						alert("没有定义的回调函数：callback=" + cfg.callback);
-					}else{
-						callback.apply(this,arguments);
-					}
-				}
+		var cfg = $this.attr("data-cfg");
+		if(cfg){
+			if(/^\{/.test($.trim(cfg))){	//对json格式进行解释
+				cfg = eval("(" + cfg + ")");
+			}else{							// 将简易配置转换为标准配置
+				cfg = {fields:cfg};
 			}
-			
-			//alert("没有配置dom元素data-cfg属性的值，无法处理！");
 		}else{
-			var cfgs = cfg.split(",");
+			cfg = {};
+		}
+		if(logger.debugEnabled)logger.debug("cfg=" + $.toJSON(cfg));
+		
+		// 清空相关元素的值
+		if(!cfg.fields){// 按标准结构获取要清空值的元素
+			cfg.fields = $this.parent("ul.inputIcons").siblings("input[type='text'],input[type='hidden']");
+			cfg.fields.val("");// 清空值
+		}else{// 简易配置的处理（用逗号连接的多个控件名称的字符串）
+			var nvs = cfg.fields.split(",");
 			var c;
 			var $form = $this.closest("form");
-			for(var i=0;i<cfgs.length;i++){
-				c = cfgs[i].split("=");
+			for(var i=0;i<nvs.length;i++){
+				c = nvs[i].split("=");// 有等于号相当于配置其默认值而不是清空
 				$form.find(":input[name='" + c[0] + "']").val(c.length > 1 ? c[1] : "");
+			}
+		}
+		
+		// 调用回调函数
+		if(typeof cfg.callback == "string"){
+			var callback = bc.getNested(cfg.callback);
+			if(typeof callback != "function"){
+				alert(this.name + "指定的回调函数没有定义：cfg.callback=" + cfg.callback);
+			}else{
+				callback.apply(this,arguments);
 			}
 		}
 	}
@@ -219,5 +297,27 @@ $document.delegate(".selectCalendar",{
 			else
 				$this.timepicker("show");
 		});
+	}
+});
+//自动内容高度
+$document.delegate(".autoHeight",{
+	keyup: function() {
+		var $this = $(this);
+		$this.height(0);
+		var maxHeight = parseInt($this.css("max-height")) || 2000;// 最大高度
+		var minHeight = parseInt($this.css("min-height")) || 0;// 最小高度
+		var h;
+		if(maxHeight < this.scrollHeight){
+			h = maxHeight;
+			$this.css("overflow", "auto");
+		}else if(minHeight > this.scrollHeight){
+			h = minHeight;
+			$this.css("overflow", "auto");
+		}else{
+			h = this.scrollHeight;
+			$this.css("overflow", "hidden");
+		}
+		//console.log("minHeight=%s, scrollHeight=%s, h=%s", minHeight, this.scrollHeight, h);
+		$this.height(h);// + ($.browser.mozilla ? 10 : 2));
 	}
 });

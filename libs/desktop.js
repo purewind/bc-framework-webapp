@@ -27,27 +27,39 @@
 					within : $(window)
 				},
 				select : function(event, ui) {
+					//避免a的链接跳转必须执行这句
+					event.preventDefault();
+
 					$li = ui.item;
 					$a = $li.children("a");
 					if(logger.infoEnabled)
 						logger.info("click:name=" + $li.text() + ";href=" + $a.attr("href"));
-					var option = $li.attr("data-option");
-					if(!option || option.length == 0) option="{}";
-					option = eval("("+option+")");
+					var option = {};
 					option.mid=$li.attr("data-mid");
 					option.name=$a.text();
 					option.type=$li.attr("data-type");
 					option.url=$a.attr("href");
 					option.standalone=$li.attr("data-standalone")=="true";
-					if(option.url && option.url.length>0 && option.url.indexOf("#")!=0)
-						bc.page.newWin(option);
+					
+					// 是否为url节点
+					var isLeaf = option.url && option.url.length>0 && option.url.indexOf("#")!=0;
+					if(isLeaf){
+						var pre = $li.find("pre");
+						if(pre.size()>0){// 前置js执行的处理
+							option.cfg = pre.html();
+							//alert(option.cfg);
+							var js = bc.formatTpl(option.cfg, option);
+							//alert(js);
+							eval("("+js+")");// 执行js脚本处理
+						}else{
+							bc.page.newWin(option);
+						}
+					}
 
-					//避免a的#跳转
-					event.preventDefault();
+					return false;
 				}
 			});
 			
-			// 双击打开桌面快捷方式
 			var $middle = this.element.find(">#middle");
 			var $center = $middle.find(">#center");
 			var $shortcuts = $center.find(">a.shortcut");
@@ -58,7 +70,11 @@
 					this.setAttribute("href","#");
 				});
 			}
-			this.element.delegate("a.shortcut","dblclick",this.openModule);
+			
+			$.support.touch = 'ontouchend' in document;
+			//alert("$.support.touch=" + $.support.touch);
+			// 双击打开桌面快捷方式
+			this.element.delegate("a.shortcut","dblclick" + ($.support.touch ? " touchend" : ""),this.openModule);
 			
 			// 禁用桌面快捷方式的默认链接打开功能
 			this.element.delegate("a.shortcut","click",function(){return false;});
@@ -90,9 +106,13 @@
 					tpl += ' data-iconClass="' + $this.attr("data-iconClass") + '"';
 					tpl += ' data-name="' + $this.attr("data-name") + '"';
 					tpl += ' data-url="' + $this.attr("data-url") + '"';
+					tpl += ' data-cfg="' + $this.attr("data-cfg") + '"';
 					//if($this.attr("data-option"))tpl += ' data-option="' + $this.attr("data-option") + '"';
 					tpl += '><span class="icon ' + $this.attr("data-iconClass") + '">';
-					tpl += '</span><span class="text">' + $this.attr("data-name") + '</span></a>';
+					tpl += '</span><span class="text">' + $this.attr("data-name") + '</span>';
+					var pre = $this.find("pre");
+					if(pre.size()>0)
+						tpl += '<pre style="display:none">'+pre.html()+'</pre>';
 					tpl += '</a>';
 					return $(tpl).appendTo("#top");
 				}
@@ -201,6 +221,12 @@
 			// 注销的控制
 			$top.find("#quickLogout").click(function() {
 				bc.chat.destroy();
+				
+				//删除cookie
+				var expiresOption = {expires: 14, path: '/'};// 这个必须要与login.js中的保持一致
+				$.removeCookie(bc.syskey + '_name',expiresOption);
+				$.removeCookie(bc.syskey + '_password',expiresOption);
+				
 				window.open(bc.root + "/logout","_self");
 				return false;
 			});
@@ -294,7 +320,8 @@
 		},
 		
 		/**双击打开桌面快捷方式*/
-		openModule: function() {
+		openModule: function(e) {
+			//alert(e.type);
 			$this = $(this);
 			logger.debug("openModule:" + $this.attr("class"));
 			var option = $this.attr("data-option");
@@ -306,7 +333,16 @@
 			option.order=$this.attr("data-order");
 			option.url=$this.attr("data-url");
 			option.standalone=$this.attr("data-standalone")=="true";
-			bc.page.newWin(option);
+			var pre = $this.find("pre");
+			if(pre.size() > 0){// 前置js执行的处理
+				option.cfg = pre.html();
+				//alert(option.cfg);
+				var js = bc.formatTpl(option.cfg, option);
+				//alert(js);
+				eval("("+js+")");// 执行js脚本处理
+			}else{
+				bc.page.newWin(option);
+			}
 		}
 	});
 

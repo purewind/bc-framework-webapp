@@ -19,7 +19,8 @@ bc.validator = {
 	 * 8) time 时间 HH:mm[:ss]
 	 * 9) phone 电话号码
 	 * 10) money 金额
-	 * 11) custom 自定义验证，需要指定验证的正则表达式regexp和提示信息info
+	 * 11) regexp 正则验证，需要指定验证的正则表达式模式 pattern 和提示信息 msg
+	 * 12) custom 自定义验证
 	 * min的值控制数字的最小值
 	 * max的值控制数字的最大值
 	 * minLen的值控制字符串的最小长度(中文按两个字符长度计算)
@@ -28,11 +29,14 @@ bc.validator = {
 	 * required的值控制是否必须填写true|false
 	 * @$form 表单form的jquery对象
 	 */
-	validate: function($form) {
+	validate: function($form,ignoreFileds) {
 		var ok = true;
-		$form.find("div.input[data-validate],:input:enabled:not(input[type='hidden']):not(:button):not(textarea.bc-editor)")
+		$form.find("div.input[data-validate],:input:enabled:not(input[type='hidden'], .hide, :button):not(textarea.bc-editor)")
 		//添加内部特殊的div模拟input控件的验证
 		.each(function(i, n){
+			//判断查找中的对象存在ignoreFileds(忽略必填验证域的name属性值)中就返回不作验证
+			if(ignoreFileds && $.inArray(this.name,ignoreFileds)!=-1)
+				return;
 			var $this = $(this);
 			var validate = $this.attr("data-validate");
 			if(logger.debugEnabled)logger.debug("validate=" + validate);
@@ -46,8 +50,16 @@ bc.validator = {
 						validate = '{"required":false,"type":"' + validate + '"}';//默认非必填
 				}
 				validate =eval("(" + validate + ")");// jQuery.parseJSON(validate);
+				var value = this.nodeName.toLowerCase() != 'div' ? $(this).val() : $.trim($(this).text());
+
+				// 要求必填但又无值时直接提示
+				if(validate.required && (!value || value.length == 0)){
+					ok = false;
+					bc.validator.remind(this, validate.type, null, validate);
+					return false;
+				}
+
 				var method = bc.validator.methods[validate.type];
-				var value = $(this).val();
 				if(method){
 					if(validate.required || (value && value.length > 0)){//必填或有值时
 						ok = method.call(validate, this, $form);//类型验证
@@ -137,7 +149,7 @@ bc.validator = {
 				return val && val.length > 0;
 			case 'div':
 				// 添加内部特殊的div模拟input控件的验证
-				$el = $(element);
+				var $el = $(element);
 				if($el.is("div.input[data-validate]")){
 					var t = $el.text()
 					return t && $.trim(t).length > 0;
@@ -205,6 +217,41 @@ bc.validator = {
 		/** 金额：1,111,111,111.00 */
 		money: function(element) {
 			return /^-?(?:\d*|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(element.value);
+		},
+		/** 自定义正则表达式的验证 */
+		regexp: function(element) {
+			if(!this.pattern){
+				alert("没有指定正则表达式的值！");
+				return false;
+			}
+			//最小长度验证
+			var ok;
+			if(this.minLen || this.minLen === 0 ){
+				ok = bc.validator.methods.minLen.call(this,element);
+				if(!ok){
+					bc.validator.remind(element, "minLen", [this.minLen+""],this);
+					return false;
+				}
+			}
+			//最大长度验证
+			if(this.maxLen || this.maxLen === 0 ){
+				ok = bc.validator.methods.maxLen.call(this,element);
+				if(!ok){
+					bc.validator.remind(element, "maxLen", [this.maxLen+""],this);
+					return false;
+				}
+			}
+			//alert(/[\da-zA-Z]*\d+[a-zA-Z]+[\da-zA-Z]*/.test(element.value) + "," + element.value)
+			//alert(new RegExp("[\\da-zA-Z]*\\d+[a-zA-Z]+[\\da-zA-Z]*").test(element.value) + "-" + element.value)
+			
+			// 正则表达式验证
+			var re;
+			if(this.flags)
+				re = new RegExp(this.pattern, this.flags);
+			else
+				re = new RegExp(this.pattern);
+				
+			return re.test(element.value);
 		}
 	},
 	/**
@@ -217,7 +264,7 @@ bc.validator = {
 		var $el = $(element);
 		//alert(element.name);
 		//滚动元素到可视区域
-		var $scrollContainer = $el.closest("div.content,div.bc-page");
+		var $scrollContainer = $el.closest("div.content,.bc-page");
 		var pOffset = $scrollContainer.offset();
 		var myOffset = $el.offset();
 		if(logger.debugEnabled){

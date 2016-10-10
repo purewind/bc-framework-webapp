@@ -43,6 +43,10 @@ table.table { /*width: 100%;
 	/*height: 100px;*/
 }
 
+.bc-grid table a {
+	color: inherit;
+}
+
 .bc-grid .header td {
 	text-align: center;
 }
@@ -69,6 +73,13 @@ table.table { /*width: 100%;
 
 .bc-grid .left {
 	border-right: 1px solid #aaa;
+}
+
+/* 移动设备访问时的样式控制 */
+@media only screen and (max-width: 999px) {
+	.bc-grid .left {
+		border-right-width: 2px;
+	}
 }
 
 .bc-grid .left,.bc-grid .left table.table,.bc-grid .left table.table td.id
@@ -218,4 +229,13 @@ table.table { /*width: 100%;
 .bc-grid>.data>.right tr.row a.bc-link {
 	text-decoration: underline;
 	color: inherit;
+}
+
+/* 视图布局的通用样式 */
+.treeGrid>.bc-grid-wrap {
+	position: absolute;
+	left: 160px;
+	right: 0;
+	top: 0;
+	bottom: 0;
 }

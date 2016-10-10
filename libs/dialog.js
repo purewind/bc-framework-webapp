@@ -24,6 +24,7 @@ var uiDialogClasses = "ui-dialog ui-widget ui-widget-content ui-corner-all ",
 	};
 
 $.extend($.ui.dialog.prototype.options, {
+	closeOnEscape: false,
 	closable: true,//关闭按钮
 	minimizable: false,//最小化按钮
 	maximizable: false,//最大化按钮
@@ -156,7 +157,7 @@ $.extend($.ui.dialog.prototype, {
 		
 		// 添加最大化按钮：maximized
 		if (options.maximizable) {
-			$('<a href="#" class="ui-corner-all"><span class="ui-icon ui-icon-extlink">maximize</span></a>')
+			$('<a href="#" class="ui-corner-all maximizeBtn"><span class="ui-icon ui-icon-extlink">maximize</span></a>')
 			.appendTo($topRightButtons)
 			.click(function( event ) {
 				event.preventDefault();
@@ -165,8 +166,9 @@ $.extend($.ui.dialog.prototype, {
 		}
 		
 		// 最后添加右上角的关闭按钮
+		var $maximizeBtn;
 		if (options.closable) {
-			$('<a href="#" class="ui-corner-all"><span class="ui-icon ui-icon-closethick">close</span></a>')
+			$maximizeBtn=$('<a href="#" class="ui-corner-all"><span class="ui-icon ui-icon-closethick">close</span></a>')
 			.appendTo($topRightButtons)
 			.click(function( event ) {
 				event.preventDefault();
@@ -374,6 +376,9 @@ $.extend($.ui.dialog.prototype, {
 			width: newWidth - (self.element.outerWidth(true) - self.element.width()), 
 			height: newHeight - (self.element.outerHeight(true) - self.element.height()) - self.uiDialog.children(".ui-dialog-titlebar").outerHeight(true) - self.uiDialog.children(".ui-dialog-buttonpane").outerHeight(true)
 		});
+		
+		// 增加样式标记
+		self.uiDialog.toggleClass("maximized");
 		
 		self._trigger('resize', event);
 		

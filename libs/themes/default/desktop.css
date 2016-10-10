@@ -16,9 +16,11 @@ body { /*background: url(images/bg_page.png) repeat top left;*/
 
 /** 桌面布局 -- 上-中(中-右)-下 */
 div.bc-desktop {
-	position: relative;
-	width: 100%;
-	height: 100%;
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	right: 0;
 	margin: 0;
 	padding: 0;
 }
@@ -71,8 +73,7 @@ div.bc-desktop>#middle>#right {
 	top: 0;
 	bottom: 0;
 	overflow: auto;
-	bottom: 0;
-	border-width: 0;
+	border-width: 0 0 0 1px;
 	text-align: center;
 }
 
@@ -378,4 +379,27 @@ div.bc-desktop> table.bottomIcons #quickShowHide.bottomIcon {
 	width: 12px;
 	vertical-align: top;
 	height: 100%;
+}
+
+/**
+ * 显示测试字样的容器
+ */
+#test {
+	z-index:100;
+	-moz-box-sizing: border-box;
+	-webkit-box-sizing: border-box;
+	box-sizing: border-box;
+	position: absolute;
+	color: #808000;
+	font-size: 28px;
+	font-weight: bold;
+	text-align: center;
+	width: 100px;
+	height: 100px;
+	top: 4px;
+	left: 45%;
+	border-radius: 50px;
+	padding:4px;
+	border: 4px solid #808000;
+	cursor: pointer;
 }
